@@ -4,8 +4,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-  allowedHosts: [
-      'alma3-1-psmt.onrender.com'
+    allowedHosts: [
+      'https://alma3-backend-v1.vercel.app'
     ],
     host: true,
     port: 5173,

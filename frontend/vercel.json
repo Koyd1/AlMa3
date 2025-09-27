@@ -1,0 +1,7 @@
+{
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/api", "destination": "https://alma3-jzj8.onrender.com/api" },
+    { "source": "/api/(.*)", "destination": "https://alma3-jzj8.onrender.com/api/$1" }
+  ]
+}

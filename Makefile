@@ -22,16 +22,3 @@ build:
 
 pull:
 	$(DOCKER_COMPOSE) pull
-
-# --- Fly.io / Cloudflare helpers ---
-fly-create:
-	cd backend && flyctl apps create alma3 || true
-
-fly-deploy:
-	cd backend && flyctl deploy --config fly.toml --now
-
-fly-secrets:
-	cd backend && flyctl secrets set ALLOWED_ORIGINS=https://alma3.pages.dev
-
-pages-build:
-	cd frontend && npm ci && npm run build

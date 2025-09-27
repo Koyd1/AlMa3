@@ -1,10 +1,7 @@
 {
   "trailingSlash": false,
-  "buildCommand": "npm ci && npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
-  }
+  "rewrites": [
+    { "source": "/api", "destination": "https://alma3-backend-v1.vercel.app/api" },
+    { "source": "/api/(.*)", "destination": "https://alma3-backend-v1.vercel.app/api/$1" }
+  ]
 }

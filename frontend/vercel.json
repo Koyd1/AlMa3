@@ -1,3 +1,10 @@
 {
-  "trailingSlash": false
+  "trailingSlash": false,
+  "buildCommand": "npm ci && npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  }
 }

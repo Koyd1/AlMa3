@@ -1,0 +1,19 @@
+app = "alma3"  # change to a unique name
+
+# You can set a region during `flyctl launch` (e.g., ams, fra, iad)
+# primary_region = "ams"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"   # enable free tier autosleep
+  auto_start_machines = true
+  min_machines_running = 0
+
+[env]
+  # Keep backend listening on 8000 (matches Dockerfile CMD)
+  PORT = "8000"
+

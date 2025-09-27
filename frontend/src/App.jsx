@@ -16,6 +16,7 @@ export default function App() {
       <h1>AI Agents Frontend (Vite)</h1>
       <p>API: {apiBase}</p>
       <pre>{JSON.stringify(health, null, 2)}</pre>
+      <div style={{ color: 'red' }}>КРАСНЫЙ</div>
     </div>
   )
 }

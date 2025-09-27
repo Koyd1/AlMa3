@@ -1,4 +1,6 @@
-module.exports = (req, res) => {
+import { withCors } from './_lib/cors.js'
+
+export default withCors(function handler(req, res) {
   res.status(200).json({
     name: "AI Agents API (Vercel)",
     status: "ok",
@@ -9,6 +11,5 @@ module.exports = (req, res) => {
       { method: "GET", path: "/api/runs", description: "List runs" },
       { method: "GET", path: "/api/billing/balance", description: "Get balance" }
     ]
-  });
-};
-
+  })
+})

@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
+  allowedHosts: [
+      'alma3-1-psmt.onrender.com'
+    ],
     host: true,
     port: 5173,
     proxy: {

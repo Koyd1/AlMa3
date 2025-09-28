@@ -75,3 +75,22 @@ npm run dev -- --host
 - В `backend/app/main.py` добавлен CORS: по умолчанию `*` (без credentials). Для продакшена обязательно задайте точный домен через `ALLOWED_ORIGINS`.
 - В `backend/fly.toml` настроен `internal_port = 8000`, совпадает с `uvicorn` из Dockerfile.
 - Nginx и `infra/` в этом варианте не используются.
+
+## Интеграционный чек (Vercel + Render/Vercel бэкенд)
+
+Для быстрого контроля работоспособности фронта и API добавлен скрипт `integration-check.mjs`.
+
+```sh
+# Проверка всего (фронт + API) по умолчанию
+node integration-check.mjs
+
+# Проверить только backend (если фронт ещё не задеплоен)
+SKIP_FRONT=1 node integration-check.mjs
+
+# Указать свои домены
+FRONT_URL=https://example-frontend.vercel.app \
+BACK_URL=https://example-backend.vercel.app \
+node integration-check.mjs
+```
+
+Скрипт проверяет доступность фронтенда, health-прокси и основных API-эндпоинтов.

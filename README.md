@@ -94,3 +94,10 @@ node integration-check.mjs
 ```
 
 Скрипт проверяет доступность фронтенда, health-прокси и основных API-эндпоинтов.
+
+### Vercel (Frontend) + Vercel (Backend) настройка
+
+- Бэкенд: деплойте как отдельный проект (например, `alma3-backend-v1`) и убедитесь, что доступны эндпоинты `/api/...`.
+- Фронтенд: проект с корнем `frontend/`. В конфиге `frontend/vercel.json` уже прописаны `rewrites`, которые проксируют `/api` → `https://alma3-backend-v1.vercel.app`.
+- Переменные окружения фронта: `VITE_API_BASE` держите пустым или равным `/api` (другие значения перезапишут прокси).
+- После изменения `vercel.json` обязательно делайте `Redeploy` с `Clear build cache`.

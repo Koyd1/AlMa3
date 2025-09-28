@@ -22,3 +22,9 @@ build:
 
 pull:
 	$(DOCKER_COMPOSE) pull
+
+run:
+	uvicorn app.main:app --reload --port 8001
+
+run-root:
+	uvicorn backend.app.main:app --reload --port 8001

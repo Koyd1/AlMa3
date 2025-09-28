@@ -3,17 +3,19 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'process.env': {}   // 🔹 фиксим потенциальные ошибки при сборке
+  },
   server: {
     allowedHosts: [
-      'https://alma3-backend-v1.vercel.app'
+      'alma3-backend-v1.vercel.app' // без https://
     ],
     host: true,
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://backend:8000',
+        target: 'http://127.0.0.1:8000', // для локальной разработки
         changeOrigin: true,
-        // keep path as-is (/api -> /api) for FastAPI routes
       },
     },
   },

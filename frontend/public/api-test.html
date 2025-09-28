@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>API Quick Check</title>
+    <style>
+      body { font-family: sans-serif; padding: 2rem; }
+      pre { background: #f5f5f5; padding: 1rem; }
+      button { padding: 0.5rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>API Quick Check</h1>
+    <p>Click to ping <code>/api/health</code> via the deployed frontend.</p>
+    <button id="ping">Check Health</button>
+    <pre id="output">(no request yet)</pre>
+
+    <script>
+      const output = document.getElementById('output')
+      document.getElementById('ping').addEventListener('click', async () => {
+        output.textContent = 'Requesting...'
+        try {
+          const response = await fetch('/api/health', { headers: { 'Accept': 'application/json' } })
+          const text = await response.text()
+          output.textContent = `Status: ${response.status}\nBody: ${text}`
+        } catch (err) {
+          output.textContent = `Error: ${err.message}`
+        }
+      })
+    </script>
+  </body>
+</html>

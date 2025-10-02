@@ -2,6 +2,7 @@
 backend/.DS_Store
 frontend/.DS_Store
 frontend/node_modules
+.idea
 
 
 # Byte-compiled / optimized / DLL files

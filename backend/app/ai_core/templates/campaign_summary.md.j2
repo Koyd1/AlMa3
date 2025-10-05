@@ -1,0 +1,59 @@
+# {{ project_title }}
+
+**Дата генерации:** {{ timestamp }}
+
+---
+
+## 🎯 Краткий бриф
+{{ brief }}
+
+---
+
+## 📋 План кампании
+{{ plan_markdown }}
+
+---
+
+## 👥 ICP и аналитика
+{{ icp_markdown }}
+
+---
+
+## 💡 Креативные концепции
+{{ concepts_markdown }}
+
+---
+
+## ✍️ Тексты
+{{ copy_markdown }}
+
+---
+
+{% if meeting_summary %}
+## 🤝 Резюме встречи
+{{ meeting_summary }}
+{% endif %}
+
+---
+
+{% if normalized_transcript %}
+## 🎧 Аудио-транскрипт
+{{ normalized_transcript }}
+{% endif %}
+
+---
+
+{% if agent_sections %}
+## 🧩 Артефакты агентов
+{% for section in agent_sections %}
+### {{ section.title }}
+{{ section.body }}
+{% endfor %}
+{% endif %}
+
+---
+
+## ✅ To-Do список
+{% for item in todo_items %}
+- [ ] {{ item.text }}
+{% endfor %}

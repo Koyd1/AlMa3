@@ -55,9 +55,7 @@ ${colorConfig
                                 const color = cfg.theme?.[theme] || cfg.color;
                                 return color ? `  --color-${key}: ${color};` : null;
                             })
-                            .join("\n")}
-}
-`
+                            .join("\n")}}`
                     )
                     .join("\n"),
             }}

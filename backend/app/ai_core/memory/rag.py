@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+ARTIFACT_ROOT = BASE_DIR / "artifacts"
+ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+
+# Простое хранилище в памяти
+_IN_MEMORY_STORE: Dict[str, List[str]] = {}
+
+
+@dataclass
+class ArtifactRecord:
+    path: Path
+    title: str
+
+
+def init_project(run_id: str, brief: str, extra_documents: Dict[str, str] | None = None) -> None:
+    """Инициализация проекта: сохраняем бриф и доп. документы в память"""
+    ARTIFACT_ROOT.joinpath(run_id).mkdir(parents=True, exist_ok=True)
+    store = _IN_MEMORY_STORE.setdefault(run_id, [])
+    store.clear()
+    store.append(brief)
+    if extra_documents:
+        store.extend(extra_documents.values())
+
+
+def upsert_document(run_id: str, content: str, *, source: str) -> None:
+    """Добавить документ в память"""
+    _IN_MEMORY_STORE.setdefault(run_id, []).append(content)
+
+
+def get_context(run_id: str, query: str | None = None, k: int = 5) -> str:
+    """Вернуть последние k документов из памяти"""
+    docs = _IN_MEMORY_STORE.get(run_id, [])
+    return "\n---\n".join(docs[-k:])
+
+
+def save_artifact(run_id: str, filename: str, content: str, *, add_to_memory: bool = True) -> Path:
+    """Сохранить артефакт на диск и в память"""
+    run_dir = ARTIFACT_ROOT / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    target = run_dir / filename
+    target.write_text(content, encoding="utf-8")
+    if add_to_memory:
+        upsert_document(run_id, content, source=filename)
+    return target
+
+
+def list_artifacts(run_id: str) -> List[ArtifactRecord]:
+    """Список артефактов для проекта"""
+    run_dir = ARTIFACT_ROOT / run_id
+    if not run_dir.exists():
+        return []
+    records: List[ArtifactRecord] = []
+    for path in sorted(run_dir.glob("*.md")):
+        records.append(
+            ArtifactRecord(path=path, title=path.stem.replace("_", " ").title())
+        )
+    return records
+
+
+__all__ = [
+    "init_project",
+    "get_context",
+    "save_artifact",
+    "list_artifacts",
+    "upsert_document",
+]

@@ -6,5 +6,8 @@ Jinja2
 pytest
 sqlalchemy
 psycopg2-binary
-
-
+openai
+pydub
+gtts
+supabase
+python-multipart

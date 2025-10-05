@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routes import auth, agents, runs, billing, primary
+from app.routes import orchestrator
 
 app = FastAPI(title="AI Agents API")
 
@@ -41,6 +42,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(agents.router, prefix="/api")
 app.include_router(runs.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
+app.include_router(orchestrator.router, prefix="/api/orchestrator")
 
 # Новый роут для таблицы 
 app.include_router(primary.router, prefix="/api/primary", tags=["primary"])

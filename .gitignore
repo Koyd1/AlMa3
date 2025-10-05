@@ -3,7 +3,10 @@ backend/.DS_Store
 frontend/.DS_Store
 frontend/node_modules
 .idea
-./frotend/.env.local
+./frontend/.env.local
+./frontend/.env.production
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -212,3 +215,4 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 frontend/.env.local
+frontend/.env.production

@@ -1,13 +1,36 @@
 from __future__ import annotations
 
-import uuid
+import errno
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-ARTIFACT_ROOT = BASE_DIR / "artifacts"
-ARTIFACT_ROOT.mkdir(parents=True, exist_ok=True)
+
+
+def _init_artifact_root() -> Path:
+    env_root = os.getenv("ARTIFACT_ROOT")
+    if env_root:
+        root = Path(env_root)
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    default_root = BASE_DIR / "artifacts"
+    try:
+        default_root.mkdir(parents=True, exist_ok=True)
+        return default_root
+    except OSError as exc:  # Vercel uses a read-only filesystem under /var/task
+        if exc.errno not in (errno.EROFS, errno.EPERM):
+            raise
+
+    fallback_root = Path(tempfile.gettempdir()) / "ai_core_artifacts"
+    fallback_root.mkdir(parents=True, exist_ok=True)
+    return fallback_root
+
+
+ARTIFACT_ROOT = _init_artifact_root()
 
 # Простое хранилище в памяти
 _IN_MEMORY_STORE: Dict[str, List[str]] = {}

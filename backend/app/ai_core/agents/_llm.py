@@ -15,9 +15,46 @@ def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
     return os.getenv(key, default)
 
 
+def _normalize_gemini_model(raw: Optional[str]) -> str:
+    """Map common aliases and deprecated names to supported Gemini models."""
+
+    if not raw:
+        return "gemini-2.5-flash"
+
+    normalized = raw.strip()
+    lower = normalized.lower()
+
+    alias_map = {
+        "flash": "gemini-2.5-flash",
+        "gemini-flash": "gemini-2.5-flash",
+        "gemini-2.5-flash": "gemini-2.5-flash",
+        "gemini-2.5-flash-latest": "gemini-2.5-flash",
+        "gemini-2.5-flash-001": "gemini-2.5-flash",
+        "gemini-1.5-flash": "gemini-1.5-flash",
+        "gemini-1.5-flash-001": "gemini-1.5-flash",
+        "gemini-1.5-flash-latest": "gemini-1.5-flash",
+        "pro": "gemini-1.5-pro",
+        "gemini-pro": "gemini-1.5-pro",
+        "gemini-1.5-pro-latest": "gemini-1.5-pro",
+    }
+
+    if lower in alias_map:
+        return alias_map[lower]
+
+    suffixes = ("-latest", "-001", "-002")
+    for suffix in suffixes:
+        if lower.endswith(suffix):
+            candidate = normalized[: -len(suffix)]
+            if candidate:
+                return candidate
+
+    return normalized
+
+
 def _get_gemini_model_name() -> str:
-    """Resolve model name or fallback to the latest flash model."""
-    return _get_env("GEMINI_MODEL", "gemini-1.5-flash-latest")
+    """Resolve model name or fallback to a stable flash model."""
+
+    return _normalize_gemini_model(_get_env("GEMINI_MODEL"))
 
 
 def _configure_gemini() -> None:
@@ -71,11 +108,13 @@ def gemini_chat(
         return text.strip()
 
     except Exception as exc:
-        # Improve visibility for 404 or auth issues
-        if "404" in str(exc):
+        message = str(exc)
+        if "404" in message or "not_found" in message.lower():
             raise LLMError(
-                f"❌ Gemini model '{model_name}' not found or unsupported. "
-                f"Try using 'gemini-1.5-flash-latest'."
+                "❌ Gemini model '{}' not found. "
+                "Ensure GEMINI_MODEL matches an available model such as 'gemini-1.5-flash'.".format(
+                    model_name
+                )
             ) from exc
         raise LLMError(f"Gemini request failed: {exc}") from exc
 

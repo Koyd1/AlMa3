@@ -5,7 +5,7 @@ frontend/node_modules
 .idea
 
 ./frontend/.env.local
-./frontend/.env.production
+!./frontend/.env.production
 
 
 
@@ -26,6 +26,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+!frontend/src/lib/
+!frontend/src/lib/**
 lib64/
 parts/
 sdist/
@@ -217,5 +219,3 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 frontend/.env.local
-frontend/.env.production
-frontend/.env.production

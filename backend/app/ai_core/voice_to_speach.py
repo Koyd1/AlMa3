@@ -26,7 +26,32 @@ _PROMPT = (
     "Do not add any extra commentary. Keep it clear, concise, and structured."
 )
 
-_DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
+def _resolve_model_name() -> str:
+    model = os.getenv("GEMINI_MODEL")
+    if not model:
+        return "gemini-2.5-flash"
+
+    normalized = model.strip().lower()
+    alias_map = {
+        "flash": "gemini-2.5-flash",
+        "gemini-flash": "gemini-2.5-flash",
+        "gemini-2.5-flash": "gemini-2.5-flash",
+        "gemini-2.5-flash-latest": "gemini-2.5-flash",
+        "gemini-2.5-flash-001": "gemini-2.5-flash",
+        "gemini-1.5-flash": "gemini-1.5-flash",
+        "gemini-1.5-flash-latest": "gemini-1.5-flash",
+        "gemini-1.5-flash-001": "gemini-1.5-flash",
+    }
+    if normalized in alias_map:
+        return alias_map[normalized]
+    if normalized.endswith("-latest"):
+        candidate = model.strip()[: -len("-latest")]
+        if candidate:
+            return candidate
+    return model.strip()
+
+
+_DEFAULT_MODEL = _resolve_model_name()
 
 
 def transcription_keys_model(

@@ -1,7 +1,8 @@
 {
-  "trailingSlash": false,
   "rewrites": [
-    { "source": "/api", "destination": "https://alma3-backend-v1.vercel.app/api" },
-    { "source": "/api/(.*)", "destination": "https://alma3-backend-v1.vercel.app/api/$1" }
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
   ]
 }

@@ -13,9 +13,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 def _init_artifact_root() -> Path:
     env_root = os.getenv("ARTIFACT_ROOT")
     if env_root:
-        root = Path(env_root)
-        root.mkdir(parents=True, exist_ok=True)
-        return root
+        root = Path(env_root).expanduser()
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            return root
+        except OSError as exc:
+            if exc.errno not in (errno.EROFS, errno.EPERM):
+                raise
 
     default_root = BASE_DIR / "artifacts"
     try:

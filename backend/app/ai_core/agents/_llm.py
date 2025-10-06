@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Iterable, Optional
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import google.generativeai as genai
 
@@ -13,6 +13,47 @@ class LLMError(RuntimeError):
 def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
     """Reads environment variable, returns default if not found."""
     return os.getenv(key, default)
+
+
+def _collect_gemini_api_keys() -> List[Tuple[str, str]]:
+    """Collect available Gemini API keys in priority order."""
+
+    def append(name: str, seen: set[str], items: List[Tuple[str, str]]) -> None:
+        value = _get_env(name)
+        if value and value not in seen:
+            items.append((name, value))
+            seen.add(value)
+
+    collected: List[Tuple[str, str]] = []
+    seen_values: set[str] = set()
+
+    append("GEMINI_API_KEY", seen_values, collected)
+    append("GOOGLE_API_KEY", seen_values, collected)
+
+    suffix_entries: List[Tuple[int, int, str]] = []
+    prefix = "GEMINI_API_KEY"
+    for name in os.environ:
+        if not name.startswith(prefix) or name == prefix:
+            continue
+        suffix = name[len(prefix) :]
+        if suffix.isdigit():
+            suffix_entries.append((0, int(suffix), name))
+        else:
+            suffix_entries.append((1, 0, name))
+
+    for _, _, name in sorted(suffix_entries):
+        append(name, seen_values, collected)
+
+    return collected
+
+
+def _is_quota_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    if "quota" in message or "rate limit" in message or "429" in message:
+        return True
+    code = getattr(exc, "code", None)
+    status = getattr(exc, "status_code", None)
+    return code == 429 or status == 429
 
 
 def _normalize_gemini_model(raw: Optional[str]) -> str:
@@ -57,14 +98,6 @@ def _get_gemini_model_name() -> str:
     return _normalize_gemini_model(_get_env("GEMINI_MODEL"))
 
 
-def _configure_gemini() -> None:
-    """Configure Gemini API."""
-    api_key = _get_env("GEMINI_API_KEY")
-    if not api_key:
-        raise LLMError("❌ GEMINI_API_KEY is not set in environment variables.")
-    genai.configure(api_key=api_key)
-
-
 def gemini_chat(
     messages: Iterable[Dict[str, str]],
     *,
@@ -75,8 +108,6 @@ def gemini_chat(
     Unified Gemini chat entrypoint.
     Supports multi-message input (system, user, assistant).
     """
-    _configure_gemini()
-
     model_name = model or _get_gemini_model_name()
 
     # Convert OpenAI-style messages to plain text prompt
@@ -93,30 +124,51 @@ def gemini_chat(
 
     prompt = "\n".join(prompt_parts).strip()
 
-    try:
-        model_obj = genai.GenerativeModel(model_name)
-        response = model_obj.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=temperature
-            ),
-        )
+    api_keys = _collect_gemini_api_keys()
+    if not api_keys:
+        raise LLMError("❌ GEMINI_API_KEY is not set in environment variables.")
 
-        text = getattr(response, "text", None)
-        if not text:
-            raise LLMError("Gemini returned empty content.")
-        return text.strip()
+    quota_errors: List[str] = []
+    last_exc: Optional[Exception] = None
 
-    except Exception as exc:
-        message = str(exc)
-        if "404" in message or "not_found" in message.lower():
-            raise LLMError(
-                "❌ Gemini model '{}' not found. "
-                "Ensure GEMINI_MODEL matches an available model such as 'gemini-1.5-flash'.".format(
-                    model_name
-                )
-            ) from exc
-        raise LLMError(f"Gemini request failed: {exc}") from exc
+    for key_name, api_key in api_keys:
+        try:
+            genai.configure(api_key=api_key)
+            model_obj = genai.GenerativeModel(model_name)
+            response = model_obj.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=temperature
+                ),
+            )
+
+            text = getattr(response, "text", None)
+            if not text:
+                raise LLMError("Gemini returned empty content.")
+            return text.strip()
+
+        except Exception as exc:
+            message = str(exc)
+            if "404" in message or "not_found" in message.lower():
+                raise LLMError(
+                    "❌ Gemini model '{}' not found. "
+                    "Ensure GEMINI_MODEL matches an available model such as 'gemini-1.5-flash'.".format(
+                        model_name
+                    )
+                ) from exc
+
+            if _is_quota_error(exc):
+                quota_errors.append(f"{key_name}: {message}")
+                last_exc = exc
+                continue
+
+            raise LLMError(f"Gemini request failed using {key_name}: {exc}") from exc
+
+    details = "; ".join(quota_errors) or "quota exceeded"
+    raise LLMError(
+        "Gemini request failed: quota exceeded for all configured keys. "
+        f"Tried {', '.join(name for name, _ in api_keys)}. Details: {details}."
+    ) from last_exc
 
 
 def chat(

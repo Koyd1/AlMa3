@@ -29,26 +29,57 @@ _PROMPT = (
 def _resolve_model_name() -> str:
     model = os.getenv("GEMINI_MODEL")
     if not model:
-        return "gemini-2.5-flash"
+        return "models/gemini-1.5-flash"
 
-    normalized = model.strip().lower()
+    stripped = model.strip()
+    lower = stripped.lower()
+
     alias_map = {
-        "flash": "gemini-2.5-flash",
-        "gemini-flash": "gemini-2.5-flash",
-        "gemini-2.5-flash": "gemini-2.5-flash",
-        "gemini-2.5-flash-latest": "gemini-2.5-flash",
-        "gemini-2.5-flash-001": "gemini-2.5-flash",
-        "gemini-1.5-flash": "gemini-1.5-flash",
-        "gemini-1.5-flash-latest": "gemini-1.5-flash",
-        "gemini-1.5-flash-001": "gemini-1.5-flash",
+        "flash": "models/gemini-1.5-flash",
+        "gemini-flash": "models/gemini-1.5-flash",
+        "gemini-1.5-flash": "models/gemini-1.5-flash",
+        "gemini-1.5-flash-latest": "models/gemini-1.5-flash-latest",
+        "gemini-1.5-flash-001": "models/gemini-1.5-flash-001",
+        "gemini-1.5-flash-002": "models/gemini-1.5-flash-002",
+        "gemini-1.5-flash-8b": "models/gemini-1.5-flash-8b",
+        "gemini-1.5-flash-8b-latest": "models/gemini-1.5-flash-8b-latest",
+        "gemini-2.0-flash": "models/gemini-2.0-flash",
+        "gemini-2.0-flash-latest": "models/gemini-2.0-flash",
+        "gemini-2.0-flash-lite": "models/gemini-2.0-flash-lite",
+        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite",
+        "gemini-2.5-flash": "models/gemini-2.0-flash",
+        "gemini-2.5-flash-latest": "models/gemini-2.0-flash",
+        "pro": "models/gemini-1.5-pro",
+        "gemini-pro": "models/gemini-1.5-pro",
+        "gemini-1.5-pro": "models/gemini-1.5-pro",
+        "gemini-1.5-pro-latest": "models/gemini-1.5-pro-latest",
+        "gemini-1.5-pro-001": "models/gemini-1.5-pro-001",
+        "gemini-1.5-pro-002": "models/gemini-1.5-pro-002",
+        "gemini-1.0-pro": "models/gemini-1.0-pro",
+        "gemini-1.0-pro-latest": "models/gemini-1.0-pro-latest",
+        "gemini-pro-latest": "models/gemini-1.0-pro-latest",
     }
-    if normalized in alias_map:
-        return alias_map[normalized]
-    if normalized.endswith("-latest"):
-        candidate = model.strip()[: -len("-latest")]
-        if candidate:
-            return candidate
-    return model.strip()
+
+    if lower in alias_map:
+        return alias_map[lower]
+
+    if lower.startswith("models/"):
+        base = lower.split("/", 1)[1]
+        if base in alias_map:
+            return alias_map[base]
+        return stripped
+
+    suffixes = ("-latest", "-001", "-002")
+    for suffix in suffixes:
+        if lower.endswith(suffix):
+            candidate = lower[: -len(suffix)]
+            if candidate in alias_map:
+                return alias_map[candidate]
+
+    if "/" not in stripped:
+        return f"models/{stripped}"
+
+    return stripped
 
 
 _DEFAULT_MODEL = _resolve_model_name()

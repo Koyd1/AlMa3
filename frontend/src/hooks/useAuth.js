@@ -10,6 +10,8 @@ export const useAuth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const apiBase = (import.meta.env.VITE_API_BASE || "/api").replace(/\/$/, "");
+
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -57,30 +59,31 @@ export const useAuth = () => {
 
   const signUpWithEmail = async (email, password) => {
     try {
-      const redirectUrl = `${window.location.origin}/dashboard`;
+      const response = await fetch(`${apiBase}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
 
-      const { data, error } = await supabase.auth.signUp({
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        const message = errorBody?.detail || `Unable to create account (HTTP ${response.status})`;
+        throw new Error(message);
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        options: { emailRedirectTo: redirectUrl },
       });
 
       if (error) throw error;
 
-      if (data?.session) {
-        toast({
-          title: "Account created!",
-          description: "Welcome to AI Orchestrator",
-        });
-        navigate("/dashboard");
-        return { requiresEmailConfirmation: false };
-      }
-
       toast({
-        title: "Confirm your email",
-        description: "We sent you a verification link to finish signing up",
+        title: "Account created!",
+        description: "Welcome to AI Orchestrator",
       });
-      return { requiresEmailConfirmation: true };
+      navigate("/dashboard");
+      return { requiresEmailConfirmation: false };
     } catch (error) {
       toast({
         title: "Error",

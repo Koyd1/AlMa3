@@ -96,16 +96,22 @@ const Auth = () => {
               </Alert>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-4 mb-6">
+            <form
+                onSubmit={handleSubmit}
+                className="space-y-4 mb-6"
+                autoComplete="on"
+            >
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                     id="email"
                     type="email"
+                    name="email"
                     placeholder="name@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    autoComplete="email"
                     className="bg-background"
                 />
               </div>
@@ -115,10 +121,12 @@ const Auth = () => {
                 <Input
                     id="password"
                     type="password"
+                    name="password"
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete={isLogin ? "current-password" : "new-password"}
                     className="bg-background"
                 />
               </div>

@@ -29,7 +29,7 @@ _PROMPT = (
 def _resolve_model_name() -> str:
     model = os.getenv("GEMINI_MODEL")
     if not model:
-        return "models/gemini-1.5-flash"
+        return "models/gemini-2.5-flash"
 
     stripped = model.strip()
     lower = stripped.lower()
@@ -44,11 +44,11 @@ def _resolve_model_name() -> str:
         "gemini-1.5-flash-8b": "models/gemini-1.5-flash-8b",
         "gemini-1.5-flash-8b-latest": "models/gemini-1.5-flash-8b-latest",
         "gemini-2.0-flash": "models/gemini-2.0-flash",
-        "gemini-2.0-flash-latest": "models/gemini-2.0-flash",
+        "gemini-2.0-flash-latest": "models/gemini-2.0-flash-latest",
         "gemini-2.0-flash-lite": "models/gemini-2.0-flash-lite",
-        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite",
-        "gemini-2.5-flash": "models/gemini-2.0-flash",
-        "gemini-2.5-flash-latest": "models/gemini-2.0-flash",
+        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite-latest",
+        "gemini-2.5-flash": "models/gemini-2.5-flash",
+        "gemini-2.5-flash-latest": "models/gemini-2.5-flash-latest",
         "pro": "models/gemini-1.5-pro",
         "gemini-pro": "models/gemini-1.5-pro",
         "gemini-1.5-pro": "models/gemini-1.5-pro",

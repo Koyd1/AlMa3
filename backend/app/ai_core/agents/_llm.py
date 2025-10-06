@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 import google.generativeai as genai
 
@@ -10,21 +10,43 @@ class LLMError(RuntimeError):
     """Raised when the LLM API returns an error."""
 
 
+class _GeminiCredential(NamedTuple):
+    key_name: str
+    api_key: str
+    model_override: Optional[str]
+
+
 def _get_env(key: str, default: Optional[str] = None) -> Optional[str]:
     """Reads environment variable, returns default if not found."""
     return os.getenv(key, default)
 
 
-def _collect_gemini_api_keys() -> List[Tuple[str, str]]:
-    """Collect available Gemini API keys in priority order."""
+def _collect_gemini_credentials() -> List[_GeminiCredential]:
+    """Collect available Gemini API keys with optional model overrides."""
 
-    def append(name: str, seen: set[str], items: List[Tuple[str, str]]) -> None:
+    def append(name: str, seen: set[str], items: List[_GeminiCredential]) -> None:
         value = _get_env(name)
-        if value and value not in seen:
-            items.append((name, value))
-            seen.add(value)
+        if not value or value in seen:
+            return
 
-    collected: List[Tuple[str, str]] = []
+        prefix_key = "GEMINI_API_KEY"
+        if name.startswith(prefix_key):
+            suffix = name[len(prefix_key) :]
+        else:
+            suffix = ""
+
+        if suffix:
+            model_env = f"GEMINI_MODEL{suffix}"
+        else:
+            model_env = "GEMINI_MODEL"
+
+        override_raw = _get_env(model_env)
+        override = _normalize_gemini_model(override_raw) if override_raw else None
+
+        items.append(_GeminiCredential(name, value, override))
+        seen.add(value)
+
+    collected: List[_GeminiCredential] = []
     seen_values: set[str] = set()
 
     append("GEMINI_API_KEY", seen_values, collected)
@@ -60,7 +82,7 @@ def _normalize_gemini_model(raw: Optional[str]) -> str:
     """Map common aliases and deprecated names to supported Gemini models."""
 
     if not raw:
-        return "models/gemini-1.5-flash"
+        return "models/gemini-2.5-flash"
 
     normalized = raw.strip()
     lower = normalized.lower()
@@ -75,11 +97,11 @@ def _normalize_gemini_model(raw: Optional[str]) -> str:
         "gemini-1.5-flash-8b": "models/gemini-1.5-flash-8b",
         "gemini-1.5-flash-8b-latest": "models/gemini-1.5-flash-8b-latest",
         "gemini-2.0-flash": "models/gemini-2.0-flash",
-        "gemini-2.0-flash-latest": "models/gemini-2.0-flash",
+        "gemini-2.0-flash-latest": "models/gemini-2.0-flash-latest",
         "gemini-2.0-flash-lite": "models/gemini-2.0-flash-lite",
-        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite",
-        "gemini-2.5-flash": "models/gemini-2.0-flash",
-        "gemini-2.5-flash-latest": "models/gemini-2.0-flash",
+        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite-latest",
+        "gemini-2.5-flash": "models/gemini-2.5-flash",
+        "gemini-2.5-flash-latest": "models/gemini-2.5-flash-latest",
         "pro": "models/gemini-1.5-pro",
         "gemini-pro": "models/gemini-1.5-pro",
         "gemini-1.5-pro": "models/gemini-1.5-pro",
@@ -129,7 +151,7 @@ def gemini_chat(
     Unified Gemini chat entrypoint.
     Supports multi-message input (system, user, assistant).
     """
-    model_name = model or _get_gemini_model_name()
+    model_name = _normalize_gemini_model(model) if model else _get_gemini_model_name()
 
     # Convert OpenAI-style messages to plain text prompt
     prompt_parts = []
@@ -145,17 +167,21 @@ def gemini_chat(
 
     prompt = "\n".join(prompt_parts).strip()
 
-    api_keys = _collect_gemini_api_keys()
-    if not api_keys:
+    credentials = _collect_gemini_credentials()
+    if not credentials:
         raise LLMError("❌ GEMINI_API_KEY is not set in environment variables.")
 
     quota_errors: List[str] = []
+    not_found_errors: List[str] = []
     last_exc: Optional[Exception] = None
 
-    for key_name, api_key in api_keys:
+    for cred in credentials:
+        key_name, api_key, override_model = cred
+        active_model = override_model or model_name
+
         try:
             genai.configure(api_key=api_key)
-            model_obj = genai.GenerativeModel(model_name)
+            model_obj = genai.GenerativeModel(active_model)
             response = model_obj.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
@@ -171,12 +197,9 @@ def gemini_chat(
         except Exception as exc:
             message = str(exc)
             if "404" in message or "not_found" in message.lower():
-                raise LLMError(
-                    "❌ Gemini model '{}' not found by the API ({}). "
-                    "Double-check GEMINI_MODEL and that your API key has access to that release.".format(
-                        model_name, message
-                    )
-                ) from exc
+                not_found_errors.append(f"{key_name}: {message}")
+                last_exc = exc
+                continue
 
             if _is_quota_error(exc):
                 quota_errors.append(f"{key_name}: {message}")
@@ -185,10 +208,19 @@ def gemini_chat(
 
             raise LLMError(f"Gemini request failed using {key_name}: {exc}") from exc
 
+    tried = ", ".join(cred.key_name for cred in credentials)
+
+    if not_found_errors:
+        details = "; ".join(not_found_errors)
+        raise LLMError(
+            "Gemini request failed: requested model is unavailable for all configured keys. "
+            f"Tried {tried}. Details: {details}."
+        ) from last_exc
+
     details = "; ".join(quota_errors) or "quota exceeded"
     raise LLMError(
         "Gemini request failed: quota exceeded for all configured keys. "
-        f"Tried {', '.join(name for name, _ in api_keys)}. Details: {details}."
+        f"Tried {tried}. Details: {details}."
     ) from last_exc
 
 

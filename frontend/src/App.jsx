@@ -25,7 +25,9 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/campaign/new" element={<CampaignWorkspace />} />
-            {/* Все остальные маршруты — в NotFound */}
+            <Route path="/campaign/:id" element={<CampaignWorkspace />} />
+
+              {/* Все остальные маршруты — в NotFound */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

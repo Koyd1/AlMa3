@@ -26,7 +26,7 @@ _PROMPT = (
     "Do not add any extra commentary. Keep it clear, concise, and structured."
 )
 
-_DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+_DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest")
 
 
 def transcription_keys_model(

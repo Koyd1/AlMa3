@@ -59,7 +59,7 @@ export const useAuth = () => {
     try {
       const redirectUrl = `${window.location.origin}/dashboard`;
 
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: redirectUrl },
@@ -67,12 +67,20 @@ export const useAuth = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Account created!",
-        description: "Welcome to AI Orchestrator",
-      });
+      if (data?.session) {
+        toast({
+          title: "Account created!",
+          description: "Welcome to AI Orchestrator",
+        });
+        navigate("/dashboard");
+        return { requiresEmailConfirmation: false };
+      }
 
-      navigate("/dashboard");
+      toast({
+        title: "Confirm your email",
+        description: "We sent you a verification link to finish signing up",
+      });
+      return { requiresEmailConfirmation: true };
     } catch (error) {
       toast({
         title: "Error",

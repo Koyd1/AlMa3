@@ -23,19 +23,32 @@ router = APIRouter(tags=["orchestrator"])
 _supabase_client: Optional[Client] = None
 
 
+def _execute_request(request):
+    """Helper to execute supabase requests and surface PostgREST errors."""
+
+    result = request.execute()
+    error = getattr(result, "error", None)
+    if error:
+        raise RuntimeError(f"Supabase request failed: {error}")
+    return result
+
+
 def get_supabase_client() -> Client:
     """Ленивая инициализация клиента Supabase."""
 
     global _supabase_client
 
     if _supabase_client is None:
-        url = os.getenv("VITE_PUBLIC_SUPABASE_URL") or os.getenv("SUPABASE_URL")
-        service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv(
-            "VITE_PUBLIC_SUPABASE_ANON_KEY"
-        )
+        url = os.getenv("SUPABASE_URL") or os.getenv("VITE_PUBLIC_SUPABASE_URL")
+        service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
-        if not url or not service_key:
-            raise RuntimeError("Supabase environment variables are not configured")
+        if not url:
+            raise RuntimeError("Supabase URL is not configured")
+
+        if not service_key:
+            raise RuntimeError(
+                "SUPABASE_SERVICE_ROLE_KEY is required for orchestrator updates"
+            )
 
         _supabase_client = create_client(url, service_key)
 
@@ -99,9 +112,11 @@ def process_campaign(
         supabase = get_supabase_client()
 
         # Обновляем статус кампании
-        supabase.table("campaigns").update(
-            {"status": "processing"}
-        ).eq("id", campaign_id).execute()
+        _execute_request(
+            supabase.table("campaigns").update({"status": "processing"}).eq(
+                "id", campaign_id
+            )
+        )
 
         # -------------------------------
         # 1. Обработка аудио (если есть)
@@ -188,6 +203,7 @@ def process_campaign(
             "status": "completed",
             "artifacts_path": ", ".join(artifacts),
             "additional_notes": (additional_notes or "") + ("\n\n" if summary else "") + summary,
+            "selected_agents": selected_agents_list,
         }
 
         board = result.get("board")
@@ -198,7 +214,11 @@ def process_campaign(
         if todo:
             update_payload["todo"] = todo
 
-        supabase.table("campaigns").update(update_payload).eq("id", campaign_id).execute()
+        _execute_request(
+            supabase.table("campaigns").update(update_payload).eq(
+                "id", campaign_id
+            )
+        )
 
         print(f"✅ Кампания {campaign_id} завершена")
 
@@ -209,6 +229,11 @@ def process_campaign(
         except RuntimeError:
             return
 
-        supabase.table("campaigns").update(
-            {"status": "failed", "additional_notes": str(e)}
-        ).eq("id", campaign_id).execute()
+        try:
+            _execute_request(
+                supabase.table("campaigns").update(
+                    {"status": "failed", "additional_notes": str(e)}
+                ).eq("id", campaign_id)
+            )
+        except RuntimeError:
+            pass

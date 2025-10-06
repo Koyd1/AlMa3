@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input.jsx";
 import { Label } from "@/components/ui/label.jsx";
 import { Sparkles } from "lucide-react";
 import { Separator } from "@/components/ui/separator.jsx";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert.jsx";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [infoMessage, setInfoMessage] = useState(null);
   const navigate = useNavigate();
   const { user, signInWithEmail, signUpWithEmail, signInWithGoogle } = useAuth();
 
@@ -28,8 +30,16 @@ const Auth = () => {
     try {
       if (isLogin) {
         await signInWithEmail(email, password);
+        setInfoMessage(null);
       } else {
-        await signUpWithEmail(email, password);
+        const result = await signUpWithEmail(email, password);
+        if (result?.requiresEmailConfirmation) {
+          setInfoMessage(
+            "Мы отправили письмо с подтверждением. Перейдите по ссылке, чтобы завершить регистрацию."
+          );
+        } else {
+          setInfoMessage(null);
+        }
       }
     } catch (error) {
       // Обработка ошибок выполняется в хуке
@@ -42,11 +52,17 @@ const Auth = () => {
     setLoading(true);
     try {
       await signInWithGoogle();
+      setInfoMessage(null);
     } catch (error) {
       // Обработка ошибок выполняется в хуке
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleMode = () => {
+    setIsLogin((prev) => !prev);
+    setInfoMessage(null);
   };
 
   return (
@@ -72,6 +88,13 @@ const Auth = () => {
                     : "Начните использовать AI Orchestrator"}
               </p>
             </div>
+
+            {infoMessage && (
+              <Alert className="mb-6">
+                <AlertTitle>Проверьте почту</AlertTitle>
+                <AlertDescription>{infoMessage}</AlertDescription>
+              </Alert>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4 mb-6">
               <div className="space-y-2">
@@ -146,7 +169,7 @@ const Auth = () => {
 
             <div className="text-center">
               <button
-                  onClick={() => setIsLogin(!isLogin)}
+                  onClick={toggleMode}
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 {isLogin

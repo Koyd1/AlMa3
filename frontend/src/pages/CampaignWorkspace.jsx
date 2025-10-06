@@ -11,6 +11,14 @@ import AgentSelector from "@/components/AgentSelector";
 import { useAuth } from "@/hooks/useAuth";
 import { useCampaigns } from "@/hooks/useCampaigns.jsx";
 
+const DEFAULT_AGENT_IDS = [
+  "analyst_icp",
+  "ideator_concepts",
+  "finance_assessment",
+  "technician_blueprint",
+  "copywriter_texts",
+];
+
 const CampaignWorkspace = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
@@ -22,7 +30,7 @@ const CampaignWorkspace = () => {
   const [audioFile, setAudioFile] = useState(null);
   const [audioTranscript, setAudioTranscript] = useState("");
   const [audioContext, setAudioContext] = useState("");
-  const [selectedAgents, setSelectedAgents] = useState([]);
+  const [selectedAgents, setSelectedAgents] = useState(() => [...DEFAULT_AGENT_IDS]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -33,18 +41,16 @@ const CampaignWorkspace = () => {
   const handleLaunch = async () => {
     if (!title.trim()) return;
 
-    const formData = new FormData();
-    formData.append("title", title);
-    formData.append("orchestrator_prompt", orchestratorPrompt);
-    formData.append("additional_notes", notes);
-    formData.append("selected_agents", JSON.stringify(selectedAgents));
-
-    if (audioFile) {
-      formData.append("audio", audioFile);
-    }
-
     try {
-      const result = await createCampaign(formData);
+      const result = await createCampaign({
+        title: title.trim(),
+        orchestrator_prompt: orchestratorPrompt || null,
+        additional_notes: notes || null,
+        audio_transcript: audioTranscript || null,
+        audio_context_request: audioContext || null,
+        selected_agents: selectedAgents,
+        audio_file: audioFile ?? null,
+      });
       console.log("✅ Campaign launched:", result);
       navigate("/dashboard");
     } catch (err) {

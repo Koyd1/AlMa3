@@ -4,7 +4,7 @@ import { Upload, Mic, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-const AudioUploader = ({ onTranscriptChange, onContextChange }) => {
+const AudioUploader = ({ onTranscriptChange, onContextChange, onFileChange }) => {
   const [audioFile, setAudioFile] = useState(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -25,6 +25,9 @@ const AudioUploader = ({ onTranscriptChange, onContextChange }) => {
     }
 
     setAudioFile(file);
+    if (typeof onFileChange === "function") {
+      onFileChange(file);
+    }
     await transcribeAudio(file);
   };
 
@@ -69,6 +72,9 @@ const AudioUploader = ({ onTranscriptChange, onContextChange }) => {
     setAudioFile(null);
     onTranscriptChange("");
     onContextChange("");
+    if (typeof onFileChange === "function") {
+      onFileChange(null);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }

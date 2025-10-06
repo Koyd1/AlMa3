@@ -218,3 +218,4 @@ marimo/_lsp/
 __marimo__/
 frontend/.env.local
 frontend/.env.production
+frontend/.env.production

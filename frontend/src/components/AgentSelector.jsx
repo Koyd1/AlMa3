@@ -4,39 +4,39 @@ import { cn } from "@/lib/utils";
 const AgentSelector = ({ selectedAgents, onSelectionChange }) => {
   const agents = [
     {
-      id: "researcher",
-      name: "Исследователь",
+      id: "analyst_icp",
+      name: "Analyst (ICP)",
       icon: Search,
-      description: "Анализ данных и исследование рынка",
+      description: "Исследует рынок и формирует целевую аудиторию",
       color: "from-blue-500 to-cyan-500",
     },
     {
-      id: "strategist",
-      name: "Стратег",
-      icon: Brain,
-      description: "Разработка стратегии и планирование",
+      id: "ideator_concepts",
+      name: "Creative Strategist",
+      icon: Lightbulb,
+      description: "Формирует концепции и коммуникационные идеи",
       color: "from-purple-500 to-pink-500",
     },
     {
-      id: "creative",
-      name: "Креативщик",
-      icon: Lightbulb,
-      description: "Генерация идей и контента",
-      color: "from-yellow-500 to-orange-500",
-    },
-    {
-      id: "copywriter",
-      name: "Копирайтер",
-      icon: PenTool,
-      description: "Написание текстов и контента",
-      color: "from-green-500 to-emerald-500",
-    },
-    {
-      id: "analyst",
-      name: "Аналитик",
+      id: "finance_assessment",
+      name: "Finance",
       icon: BarChart,
-      description: "Анализ результатов и метрик",
+      description: "Оценивает бюджеты и финансовые риски",
+      color: "from-orange-500 to-amber-500",
+    },
+    {
+      id: "technician_blueprint",
+      name: "Technician",
+      icon: Brain,
+      description: "Проектирует техстек и дорожную карту реализации",
       color: "from-red-500 to-rose-500",
+    },
+    {
+      id: "copywriter_texts",
+      name: "Copywriter",
+      icon: PenTool,
+      description: "Создает тексты и рекламные материалы",
+      color: "from-green-500 to-emerald-500",
     },
   ];
 

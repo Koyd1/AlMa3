@@ -29,10 +29,21 @@ export const useCampaigns = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Пользователь не авторизован");
 
+      const {
+        audio_file,
+        selected_agents: rawSelectedAgents = [],
+        ...restPayload
+      } = payload ?? {};
+
+      const selected_agents = Array.isArray(rawSelectedAgents)
+        ? rawSelectedAgents
+        : [];
+
       const { data: campaign, error } = await supabase
         .from("campaigns")
         .insert({
-          ...payload,
+          ...restPayload,
+          selected_agents,
           user_id: user.id,
           status: "pending",
         })
@@ -44,19 +55,48 @@ export const useCampaigns = () => {
       // Подготовка данных для FastAPI
       const formData = new FormData();
       formData.append("campaign_id", campaign.id);
-      formData.append("title", payload.title);
-      formData.append("orchestrator_prompt", payload.orchestrator_prompt || "");
-      formData.append("additional_notes", payload.additional_notes || "");
-      formData.append("selected_agents", JSON.stringify(payload.selected_agents || []));
-      if (payload.audio_file) {
-        formData.append("audio", payload.audio_file);
+      formData.append("title", campaign.title ?? restPayload.title ?? "");
+      formData.append(
+        "orchestrator_prompt",
+        restPayload.orchestrator_prompt ?? campaign.orchestrator_prompt ?? ""
+      );
+      formData.append(
+        "additional_notes",
+        restPayload.additional_notes ?? campaign.additional_notes ?? ""
+      );
+      formData.append("selected_agents", JSON.stringify(selected_agents));
+      if (audio_file) {
+        formData.append("audio", audio_file);
       }
 
       // Вызов FastAPI оркестратора
-      await fetch("/api/orchestrator/run", {
+      const response = await fetch("/api/orchestrator/run", {
         method: "POST",
         body: formData,
       });
+
+      if (!response.ok) {
+        let detail = "";
+        try {
+          const data = await response.json();
+          detail = data?.detail || data?.message || "";
+        } catch (error) {
+          // ignore parse errors, we'll fall back to status text
+        }
+
+        try {
+          await supabase
+            .from("campaigns")
+            .update({ status: "failed" })
+            .eq("id", campaign.id);
+        } catch (error) {
+          // ignore update errors, original failure reason is more important
+        }
+
+        throw new Error(
+          detail || `Не удалось запустить оркестратор (${response.status})`
+        );
+      }
 
       return campaign;
     },

@@ -6,6 +6,7 @@ import { useToast } from "./use-toast";
 export const useCampaigns = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const apiBase = (import.meta.env.VITE_API_BASE || "/api").replace(/\/$/, "");
 
   const campaignsQuery = useQuery({
     queryKey: ["campaigns"],
@@ -70,7 +71,7 @@ export const useCampaigns = () => {
       }
 
       // Вызов FastAPI оркестратора
-      const response = await fetch("/api/orchestrator/run", {
+      const response = await fetch(`${apiBase}/orchestrator/run`, {
         method: "POST",
         body: formData,
       });

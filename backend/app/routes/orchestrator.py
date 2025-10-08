@@ -7,6 +7,7 @@ from supabase import create_client, Client
 
 # Импорты из твоего кода агентов
 from app.ai_core.graph import prepare_initial_state, run_campaign
+from app.ai_core.agents.registry import AGENT_REGISTRY
 from app.ai_core.services.audio import (
     AudioProcessingError,
     MeetingMaterials,
@@ -53,6 +54,61 @@ def get_supabase_client() -> Client:
         _supabase_client = create_client(url, service_key)
 
     return _supabase_client
+
+
+# ---------------------
+# Helpers
+# ---------------------
+_STEP_LABELS = {
+    "manager_plan": "План кампании",
+    "manager_summary": "Финальная сборка",
+}
+for _agent_id, _config in AGENT_REGISTRY.items():
+    _STEP_LABELS[_agent_id] = _config.title
+
+
+def _humanize_step(step_id: str) -> str:
+    return _STEP_LABELS.get(step_id, step_id.replace("_", " ").title())
+
+
+def _compose_notes(user_notes: str, progress_log: list[str], summary: str | None = None) -> str:
+    sections: list[str] = []
+    cleaned_user_notes = (user_notes or "").strip()
+
+    if cleaned_user_notes:
+        sections.append(f"📝 Заметки пользователя:\n{cleaned_user_notes}")
+    if summary:
+        sections.append(summary.strip())
+    if progress_log:
+        sections.append("📈 Прогресс выполнения:\n" + "\n".join(progress_log))
+
+    return "\n\n".join(section for section in sections if section).strip()
+
+
+def _safe_campaign_update(supabase: Client, campaign_id: str, payload: dict) -> None:
+    try:
+        _execute_request(
+            supabase.table("campaigns").update(payload).eq("id", campaign_id)
+        )
+    except RuntimeError as exc:
+        message = str(exc).lower()
+        filtered_payload = dict(payload)
+        removed_fields: list[str] = []
+
+        for field in ("board", "todo"):
+            if field in filtered_payload and field in message:
+                filtered_payload.pop(field, None)
+                removed_fields.append(field)
+
+        if removed_fields:
+            print(
+                f"ℹ️ Supabase schema missing columns {', '.join(removed_fields)}; retrying without them."
+            )
+            _execute_request(
+                supabase.table("campaigns").update(filtered_payload).eq("id", campaign_id)
+            )
+        else:
+            raise
 
 
 # ---------------------
@@ -108,14 +164,40 @@ def process_campaign(
     audio_bytes: Optional[bytes],
     audio_filename: Optional[str],
 ):
+    user_notes = (additional_notes or "").strip()
+    progress_log: list[str] = []
+    supabase: Optional[Client] = None
+
     try:
         supabase = get_supabase_client()
 
-        # Обновляем статус кампании
-        _execute_request(
-            supabase.table("campaigns").update({"status": "processing"}).eq(
-                "id", campaign_id
-            )
+        # -------------------------------
+        # 0. Подготовка шагов и прогресса
+        # -------------------------------
+        try:
+            loaded_agents = json.loads(selected_agents or "[]")
+        except json.JSONDecodeError:
+            loaded_agents = []
+
+        if isinstance(loaded_agents, list):
+            selected_agents_list = [
+                agent_id for agent_id in loaded_agents if isinstance(agent_id, str)
+            ]
+        else:
+            selected_agents_list = []
+
+        steps_sequence = ["manager_plan", *selected_agents_list, "manager_summary"]
+        total_steps = max(len(steps_sequence), 1)
+        progress_log.append(f"🚀 Оркестратор запущен. Всего шагов: {total_steps}.")
+
+        _safe_campaign_update(
+            supabase,
+            campaign_id,
+            {
+                "status": "processing",
+                "selected_agents": selected_agents_list,
+                "additional_notes": _compose_notes(user_notes, progress_log),
+            },
         )
 
         # -------------------------------
@@ -143,22 +225,20 @@ def process_campaign(
                     audio_summary = transcription_keys_model(meeting_materials.summary)
                 except Exception as exc:  # pragma: no cover - опциональная интеграция
                     print("⚠️ Gemini summarization failed:", exc)
+            if meeting_materials:
+                progress_log.append("🎧 Аудиоматериалы подготовлены.")
+                _safe_campaign_update(
+                    supabase,
+                    campaign_id,
+                    {
+                        "status": "processing",
+                        "additional_notes": _compose_notes(user_notes, progress_log),
+                    },
+                )
 
         # -------------------------------
         # 2. Подготовка состояния агентов
         # -------------------------------
-        try:
-            loaded_agents = json.loads(selected_agents or "[]")
-        except json.JSONDecodeError:
-            loaded_agents = []
-
-        if isinstance(loaded_agents, list):
-            selected_agents_list = [
-                agent_id for agent_id in loaded_agents if isinstance(agent_id, str)
-            ]
-        else:
-            selected_agents_list = []
-
         brief_sections = [orchestrator_prompt, additional_notes, audio_summary]
         base_brief = "\n\n".join(s for s in brief_sections if s)
 
@@ -191,18 +271,43 @@ def process_campaign(
         # -------------------------------
         # 3. Запуск оркестрации
         # -------------------------------
-        result = run_campaign(state)
+        progress_state = {"completed": 0}
+
+        def handle_step(step_id: str, step_state) -> None:
+            progress_state["completed"] += 1
+            label = _humanize_step(step_id)
+            progress_log.append(
+                f"{progress_state['completed']}/{total_steps} — {label}"
+            )
+            artifacts_list = [
+                str(path)
+                for path in step_state.get("artifacts", [])
+                if isinstance(path, (str, os.PathLike))
+            ]
+            _safe_campaign_update(
+                supabase,
+                campaign_id,
+                {
+                    "status": "processing",
+                    "additional_notes": _compose_notes(user_notes, progress_log),
+                    "artifacts_path": ", ".join(artifacts_list),
+                },
+            )
+
+        result = run_campaign(state, on_step=handle_step)
 
         summary = result.get("summary", "")
-        artifacts = result.get("artifacts", [])
+        artifacts = [str(path) for path in result.get("artifacts", [])]
 
         # -------------------------------
         # 4. Обновление кампании в Supabase
         # -------------------------------
+        progress_log.append("🏁 Оркестратор завершил выполнение.")
+
         update_payload = {
             "status": "completed",
             "artifacts_path": ", ".join(artifacts),
-            "additional_notes": (additional_notes or "") + ("\n\n" if summary else "") + summary,
+            "additional_notes": _compose_notes(user_notes, progress_log, summary),
             "selected_agents": selected_agents_list,
         }
 
@@ -214,26 +319,30 @@ def process_campaign(
         if todo:
             update_payload["todo"] = todo
 
-        _execute_request(
-            supabase.table("campaigns").update(update_payload).eq(
-                "id", campaign_id
-            )
-        )
+        _safe_campaign_update(supabase, campaign_id, update_payload)
 
         print(f"✅ Кампания {campaign_id} завершена")
 
     except Exception as e:
         print("❌ Ошибка при обработке кампании:", e)
         try:
-            supabase = get_supabase_client()
+            if supabase is None:
+                supabase = get_supabase_client()
         except RuntimeError:
             return
 
         try:
-            _execute_request(
-                supabase.table("campaigns").update(
-                    {"status": "failed", "additional_notes": str(e)}
-                ).eq("id", campaign_id)
+            progress_log.append(f"⚠️ Ошибка: {e}")
+            failure_notes = _compose_notes(user_notes, progress_log)
+            if failure_notes:
+                failure_notes = f"{failure_notes}\n\n⚠️ Подробности: {e}"
+            else:
+                failure_notes = f"⚠️ Ошибка: {e}"
+
+            _safe_campaign_update(
+                supabase,
+                campaign_id,
+                {"status": "failed", "additional_notes": failure_notes},
             )
         except RuntimeError:
             pass

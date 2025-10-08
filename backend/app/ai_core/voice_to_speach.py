@@ -35,29 +35,7 @@ def _resolve_model_name() -> str:
     lower = stripped.lower()
 
     alias_map = {
-        "flash": "models/gemini-1.5-flash",
-        "gemini-flash": "models/gemini-1.5-flash",
-        "gemini-1.5-flash": "models/gemini-1.5-flash",
-        "gemini-1.5-flash-latest": "models/gemini-1.5-flash-latest",
-        "gemini-1.5-flash-001": "models/gemini-1.5-flash-001",
-        "gemini-1.5-flash-002": "models/gemini-1.5-flash-002",
-        "gemini-1.5-flash-8b": "models/gemini-1.5-flash-8b",
-        "gemini-1.5-flash-8b-latest": "models/gemini-1.5-flash-8b-latest",
-        "gemini-2.0-flash": "models/gemini-2.0-flash",
-        "gemini-2.0-flash-latest": "models/gemini-2.0-flash-latest",
-        "gemini-2.0-flash-lite": "models/gemini-2.0-flash-lite",
-        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite-latest",
         "gemini-2.5-flash": "models/gemini-2.5-flash",
-        "gemini-2.5-flash-latest": "models/gemini-2.5-flash-latest",
-        "pro": "models/gemini-1.5-pro",
-        "gemini-pro": "models/gemini-1.5-pro",
-        "gemini-1.5-pro": "models/gemini-1.5-pro",
-        "gemini-1.5-pro-latest": "models/gemini-1.5-pro-latest",
-        "gemini-1.5-pro-001": "models/gemini-1.5-pro-001",
-        "gemini-1.5-pro-002": "models/gemini-1.5-pro-002",
-        "gemini-1.0-pro": "models/gemini-1.0-pro",
-        "gemini-1.0-pro-latest": "models/gemini-1.0-pro-latest",
-        "gemini-pro-latest": "models/gemini-1.0-pro-latest",
     }
 
     if lower in alias_map:

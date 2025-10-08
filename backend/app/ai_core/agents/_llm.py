@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Iterable, List, NamedTuple, Optional, Tuple
+from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 import google.generativeai as genai
 
@@ -88,29 +88,7 @@ def _normalize_gemini_model(raw: Optional[str]) -> str:
     lower = normalized.lower()
 
     alias_map = {
-        "flash": "models/gemini-1.5-flash",
-        "gemini-flash": "models/gemini-1.5-flash",
-        "gemini-1.5-flash": "models/gemini-1.5-flash",
-        "gemini-1.5-flash-latest": "models/gemini-1.5-flash-latest",
-        "gemini-1.5-flash-001": "models/gemini-1.5-flash-001",
-        "gemini-1.5-flash-002": "models/gemini-1.5-flash-002",
-        "gemini-1.5-flash-8b": "models/gemini-1.5-flash-8b",
-        "gemini-1.5-flash-8b-latest": "models/gemini-1.5-flash-8b-latest",
-        "gemini-2.0-flash": "models/gemini-2.0-flash",
-        "gemini-2.0-flash-latest": "models/gemini-2.0-flash-latest",
-        "gemini-2.0-flash-lite": "models/gemini-2.0-flash-lite",
-        "gemini-2.0-flash-lite-latest": "models/gemini-2.0-flash-lite-latest",
         "gemini-2.5-flash": "models/gemini-2.5-flash",
-        "gemini-2.5-flash-latest": "models/gemini-2.5-flash-latest",
-        "pro": "models/gemini-1.5-pro",
-        "gemini-pro": "models/gemini-1.5-pro",
-        "gemini-1.5-pro": "models/gemini-1.5-pro",
-        "gemini-1.5-pro-latest": "models/gemini-1.5-pro-latest",
-        "gemini-1.5-pro-001": "models/gemini-1.5-pro-001",
-        "gemini-1.5-pro-002": "models/gemini-1.5-pro-002",
-        "gemini-1.0-pro": "models/gemini-1.0-pro",
-        "gemini-1.0-pro-latest": "models/gemini-1.0-pro-latest",
-        "gemini-pro-latest": "models/gemini-1.0-pro-latest",
     }
 
     if lower in alias_map:
@@ -133,6 +111,83 @@ def _normalize_gemini_model(raw: Optional[str]) -> str:
         return f"models/{normalized}"
 
     return normalized
+
+
+def _describe_empty_response(response: Any, error: Optional[Exception] = None) -> str:
+    """Compose debug info for empty Gemini responses."""
+
+    details: List[str] = []
+
+    candidates = getattr(response, "candidates", None) or []
+    first_candidate = candidates[0] if candidates else None
+
+    finish_reason = getattr(first_candidate, "finish_reason", None)
+    if finish_reason is not None:
+        details.append(f"finish_reason={finish_reason}")
+
+    block_reason = getattr(getattr(response, "prompt_feedback", None), "block_reason", None)
+    if block_reason:
+        details.append(f"block_reason={block_reason}")
+
+    safety = getattr(first_candidate, "safety_ratings", None)
+    if safety:
+        details.append(f"safety={safety}")
+
+    if error:
+        details.append(f"exception={error}")
+
+    return ", ".join(details) if details else "empty response"
+
+
+def _extract_text_from_response(response: Any) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Extract plain text from Gemini response.
+
+    Returns a tuple of (text, debug_info). When text is None, debug_info
+    contains a short explanation.
+    """
+
+    candidates = getattr(response, "candidates", None) or []
+    collected: List[str] = []
+
+    for candidate in candidates:
+        content = getattr(candidate, "content", None)
+        parts = getattr(content, "parts", None) or []
+        for part in parts:
+            text = getattr(part, "text", None)
+            if text:
+                collected.append(text)
+
+    if collected:
+        combined = "\n".join(collected).strip()
+        if combined:
+            return combined, None
+
+    try:
+        text_prop = response.text  # type: ignore[attr-defined]
+    except Exception as exc:
+        return None, _describe_empty_response(response, exc)
+
+    if isinstance(text_prop, str) and text_prop.strip():
+        return text_prop.strip(), None
+
+    return None, _describe_empty_response(response)
+
+
+_FALLBACK_MODELS = [
+    "models/gemini-2.5-flash",
+]
+
+
+def _candidate_models(primary: str, default: str) -> List[str]:
+    order: List[str] = []
+    for candidate in (primary, default, *_FALLBACK_MODELS):
+        if not candidate:
+            continue
+        normalized = _normalize_gemini_model(candidate)
+        if normalized not in order:
+            order.append(normalized)
+    return order
 
 
 def _get_gemini_model_name() -> str:
@@ -173,40 +228,54 @@ def gemini_chat(
 
     quota_errors: List[str] = []
     not_found_errors: List[str] = []
+    empty_responses: List[str] = []
     last_exc: Optional[Exception] = None
 
     for cred in credentials:
         key_name, api_key, override_model = cred
         active_model = override_model or model_name
+        models_to_try = _candidate_models(active_model, model_name)
 
-        try:
-            genai.configure(api_key=api_key)
-            model_obj = genai.GenerativeModel(active_model)
-            response = model_obj.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=temperature
-                ),
-            )
+        genai.configure(api_key=api_key)
 
-            text = getattr(response, "text", None)
-            if not text:
-                raise LLMError("Gemini returned empty content.")
-            return text.strip()
+        for candidate_model in models_to_try:
+            try:
+                model_obj = genai.GenerativeModel(candidate_model)
+                response = model_obj.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=temperature
+                    ),
+                )
+            except Exception as exc:
+                message = str(exc)
+                tag = f"{key_name}@{candidate_model}"
 
-        except Exception as exc:
-            message = str(exc)
-            if "404" in message or "not_found" in message.lower():
-                not_found_errors.append(f"{key_name}: {message}")
-                last_exc = exc
-                continue
+                if "404" in message or "not_found" in message.lower():
+                    not_found_errors.append(f"{tag}: {message}")
+                    last_exc = exc
+                    continue
 
-            if _is_quota_error(exc):
-                quota_errors.append(f"{key_name}: {message}")
-                last_exc = exc
-                continue
+                if _is_quota_error(exc):
+                    quota_errors.append(f"{tag}: {message}")
+                    last_exc = exc
+                    break
 
-            raise LLMError(f"Gemini request failed using {key_name}: {exc}") from exc
+                raise LLMError(f"Gemini request failed using {tag}: {exc}") from exc
+
+            text, debug_info = _extract_text_from_response(response)
+            if text:
+                return text
+
+            explanation = debug_info or "empty response"
+            empty_responses.append(f"{key_name}@{candidate_model}: {explanation}")
+            last_exc = RuntimeError(explanation)
+        else:
+            # All candidate models exhausted for this credential
+            continue
+
+        # If we hit a quota error we break to next credential without trying other models
+        continue
 
     tried = ", ".join(cred.key_name for cred in credentials)
 
@@ -214,6 +283,13 @@ def gemini_chat(
         details = "; ".join(not_found_errors)
         raise LLMError(
             "Gemini request failed: requested model is unavailable for all configured keys. "
+            f"Tried {tried}. Details: {details}."
+        ) from last_exc
+
+    if empty_responses:
+        details = "; ".join(empty_responses)
+        raise LLMError(
+            "Gemini request failed: received empty responses for all configured keys. "
             f"Tried {tried}. Details: {details}."
         ) from last_exc
 

@@ -5,5 +5,11 @@
       "use": "@vercel/static-build",
       "config": { "distDir": "dist" }
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://al-ma3-back.vercel.app/api/:path*"
+    }
   ]
 }

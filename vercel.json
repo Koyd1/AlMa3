@@ -15,18 +15,18 @@
       }
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "backend/app/vercel.py"
+      "source": "/api/:path*",
+      "destination": "/backend/app/vercel.py"
     },
     {
-      "src": "/(.*\\..*)",
-      "dest": "frontend/dist/$1"
+      "source": "/:path*\\.(js|css|png|jpg|jpeg|svg|ico|txt|webp|woff2|woff|ttf|map)",
+      "destination": "/frontend/dist/:path*"
     },
     {
-      "src": "/(.*)",
-      "dest": "frontend/dist/index.html"
+      "source": "/:path*",
+      "destination": "/frontend/dist/index.html"
     }
   ]
 }

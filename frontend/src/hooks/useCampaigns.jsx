@@ -1,4 +1,3 @@
-//New code:
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "./use-toast";
@@ -8,6 +7,9 @@ export const useCampaigns = () => {
   const { toast } = useToast();
   const apiBase = (import.meta.env.VITE_API_BASE || "/api").replace(/\/$/, "");
 
+  // ==========================
+  // Получение списка кампаний
+  // ==========================
   const campaignsQuery = useQuery({
     queryKey: ["campaigns"],
     queryFn: async () => {
@@ -18,13 +20,17 @@ export const useCampaigns = () => {
         .from("campaigns")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .order("pinned", { ascending: false });
 
       if (error) throw error;
       return data ?? [];
     },
   });
 
+  // ==========================
+  // Создание кампании
+  // ==========================
   const createCampaignMutation = useMutation({
     mutationFn: async (payload) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -82,7 +88,9 @@ export const useCampaigns = () => {
           const data = await response.json();
           detail = data?.detail || data?.message || "";
         } catch (error) {
-          // ignore parse errors, we'll fall back to status text
+          //Реагируем на ошибку
+          detail = "";
+          console.error("Ошибка при вызове FastAPI:", error);
         }
 
         try {
@@ -91,7 +99,7 @@ export const useCampaigns = () => {
             .update({ status: "failed" })
             .eq("id", campaign.id);
         } catch (error) {
-          // ignore update errors, original failure reason is more important
+          console.error("Ошибка при обновлении статуса кампании:", error);
         }
 
         throw new Error(
@@ -119,6 +127,51 @@ export const useCampaigns = () => {
     },
   });
 
+  // ==========================
+  // Обновление кампании
+  // ==========================
+  const updateCampaignMutation = useMutation({
+    mutationFn: async ({ id, updates }) => {
+      if (!id) throw new Error("Не указан ID кампании");
+
+      const updateData = {};
+
+      if (updates.status !== undefined) updateData.status = updates.status;
+      if (updates.title !== undefined) updateData.title = updates.title;
+      if (updates.additional_notes !== undefined)
+        updateData.additional_notes = updates.additional_notes;
+      if (updates.selected_agents !== undefined)
+        updateData.selected_agents = updates.selected_agents;
+      if (updates.pinned !== undefined) updateData.pinned = updates.pinned; // ✅ Добавлено сюда
+
+      const { error } = await supabase
+        .from("campaigns")
+        .update(updateData)
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      toast({
+        title: "Кампания обновлена",
+        description: "Изменения сохранены успешно",
+      });
+    },
+
+    onError: (error) => {
+      toast({
+        title: "Ошибка обновления",
+        description: error?.message || "Не удалось обновить кампанию",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // ==========================
+  // Возвращаем хук
+  // ==========================
   return {
     campaigns: campaignsQuery.data ?? [],
     isLoading: campaignsQuery.isLoading,
@@ -126,108 +179,7 @@ export const useCampaigns = () => {
     refetch: campaignsQuery.refetch,
     createCampaign: createCampaignMutation.mutateAsync,
     isCreating: createCampaignMutation.isPending,
+    updateCampaign: updateCampaignMutation.mutateAsync,
+    isUpdating: updateCampaignMutation.isPending,
   };
 };
-
-
-//Old code:
-// import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// import { supabase } from "@/integrations/supabase/client";
-// import { useToast } from "./use-toast";
-
-// export const useCampaigns = () => {
-//   const queryClient = useQueryClient();
-//   const { toast } = useToast();
-
-//   const campaignsQuery = useQuery({
-//     queryKey: ["campaigns"],
-//     queryFn: async () => {
-//       const {
-//         data: { user },
-//         error: userError,
-//       } = await supabase.auth.getUser();
-
-//       if (userError) {
-//         throw userError;
-//       }
-
-//       if (!user) {
-//         return [];
-//       }
-
-//       const { data, error } = await supabase
-//         .from("campaigns")
-//         .select(
-//           "id, title, status, selected_agents, created_at, orchestrator_prompt, additional_notes, audio_transcript, audio_context_request, artifacts_path"
-//         )
-//         .eq("user_id", user.id)
-//         .order("created_at", { ascending: false });
-
-//       if (error) {
-//         throw error;
-//       }
-
-//       return data ?? [];
-//     },
-//   });
-
-//   const createCampaignMutation = useMutation({
-//     mutationFn: async (payload) => {
-//       const {
-//         data: { user },
-//         error: userError,
-//       } = await supabase.auth.getUser();
-
-//       if (userError) {
-//         throw userError;
-//       }
-
-//       if (!user) {
-//         throw new Error("Пользователь не авторизован");
-//       }
-
-//       const { data, error } = await supabase
-//         .from("campaigns")
-//         .insert({
-//           ...payload,
-//           user_id: user.id,
-//         })
-//         .select()
-//         .single();
-
-//       if (error) {
-//         throw error;
-//       }
-
-//       return data;
-//     },
-//     onSuccess: (newCampaign) => {
-//       queryClient.setQueryData(["campaigns"], (existing = []) => [
-//         newCampaign,
-//         ...existing,
-//       ]);
-//       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-//       toast({
-//         title: "Кампания создана",
-//         description: "Новая кампания успешно добавлена",
-//       });
-//     },
-//     onError: (error) => {
-//       toast({
-//         title: "Ошибка",
-//         description:
-//           error?.message || "Не удалось создать кампанию, попробуйте позже",
-//         variant: "destructive",
-//       });
-//     },
-//   });
-
-//   return {
-//     campaigns: campaignsQuery.data ?? [],
-//     isLoading: campaignsQuery.isLoading,
-//     error: campaignsQuery.error,
-//     refetch: campaignsQuery.refetch,
-//     createCampaign: createCampaignMutation.mutateAsync,
-//     isCreating: createCampaignMutation.isPending,
-//   };
-// };

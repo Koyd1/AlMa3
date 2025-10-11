@@ -73,13 +73,11 @@ const Home = () => {
                     Начать работу
                   </Button>
                 </Link>
-                <Button
-                    size="lg"
-                    variant="outline"
-                    className="border-primary/50 hover:bg-primary/10"
-                >
+              <Link to="/learn-more">
+                <Button size="lg" variant="outline" className="border-primary/50 hover:bg-primary/10">
                   Узнать больше
                 </Button>
+              </Link>
               </div>
             </div>
           </div>
@@ -224,7 +222,7 @@ const Home = () => {
         {/* Footer */}
         <footer className="border-t border-border py-12">
           <div className="container mx-auto px-4 text-center text-muted-foreground">
-            <p>&copy; 2025 AI Orchestrator. Все права защищены.</p>
+            <p>&copy; 2025 AI Orchestrator AlMa3. Все права защищены.</p>
           </div>
         </footer>
       </div>

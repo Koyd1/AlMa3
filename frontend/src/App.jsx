@@ -3,6 +3,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner.jsx";
 import { TooltipProvider } from "@/components/ui/tooltip.jsx";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+//Страница подробнее и делтали кампании
+import CampaignDetails from "./pages/CampaignDetails";
+import LearnMore from "./pages/LearnMore";
 
 import Home from "./pages/Home";
 import Pricing from "./pages/Pricing";
@@ -21,11 +24,12 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/learn-more" element={<LearnMore />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/campaign/new" element={<CampaignWorkspace />} />
-            <Route path="/campaign/:id" element={<CampaignWorkspace />} />
+            <Route path="/campaign/:id" element={<CampaignDetails />} />            
 
               {/* Все остальные маршруты — в NotFound */}
             <Route path="*" element={<NotFound />} />

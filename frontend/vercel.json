@@ -10,6 +10,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://al-ma3-back.vercel.app/api/:path*"
+    },
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }

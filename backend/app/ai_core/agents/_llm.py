@@ -196,6 +196,20 @@ def _get_gemini_model_name() -> str:
     return _normalize_gemini_model(_get_env("GEMINI_MODEL"))
 
 
+def _get_max_output_tokens() -> int:
+    """Resolve max output tokens for Gemini completions."""
+
+    raw = _get_env("GEMINI_MAX_OUTPUT_TOKENS")
+    if raw:
+        try:
+            value = int(raw)
+            if value > 0:
+                return value
+        except ValueError:
+            pass
+    return 8192
+
+
 def gemini_chat(
     messages: Iterable[Dict[str, str]],
     *,
@@ -244,7 +258,9 @@ def gemini_chat(
                 response = model_obj.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(
-                        temperature=temperature
+                        temperature=temperature,
+                        max_output_tokens=_get_max_output_tokens(),
+                        candidate_count=1,
                     ),
                 )
             except Exception as exc:

@@ -36,7 +36,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useCampaigns } from "@/hooks/useCampaigns.jsx";
 import { useProfile } from "@/hooks/useProfile";
-import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 const Dashboard = () => {
@@ -48,9 +47,9 @@ const Dashboard = () => {
     updateCampaign,
     deleteCampaign,
     refetch,
+    isDeleting,
   } = useCampaigns();
   const { profile } = useProfile();
-  const { toast } = useToast();
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
@@ -133,9 +132,12 @@ const Dashboard = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleDeleteConfirm = () => {
-    if (selectedCampaign) {
-      deleteCampaign(selectedCampaign.id);
+  const handleDeleteConfirm = async () => {
+    if (!selectedCampaign) return;
+
+    try {
+      await deleteCampaign(selectedCampaign.id);
+    } finally {
       setDeleteDialogOpen(false);
       setSelectedCampaign(null);
     }
@@ -167,10 +169,7 @@ const Dashboard = () => {
   };
 
   const handleRegenerate = (campaign) => {
-    toast({
-      title: "Перегенерация",
-      description: "Функция перегенерации в разработке",
-    });
+    navigate(`/campaign/${campaign.id}?mode=regenerate`);
   };
 
   // 🌀 Loading state
@@ -229,7 +228,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
           <div className="bg-card border border-border rounded-lg p-6">
             <div className="text-muted-foreground mb-2">Всего кампаний</div>
             <div className="text-3xl font-bold">{campaigns?.length || 0}</div>
@@ -248,13 +247,33 @@ const Dashboard = () => {
           </div>
         </div>
 
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+          <h2 className="text-2xl font-semibold">Мои кампании</h2>
+          <Button
+            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 w-full sm:w-auto"
+            onClick={() => navigate("/campaign/new")}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Создать кампанию
+          </Button>
+        </div>
+
         {/* Campaigns List */}
         {campaigns && campaigns.length > 0 ? (
           <div className="space-y-4">
             {campaigns.map((campaign) => (
               <div
                 key={campaign.id}
-                className="bg-card border border-border rounded-lg p-4 md:p-6 hover:border-primary/50 transition-colors"
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate(`/campaign/${campaign.id}`)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigate(`/campaign/${campaign.id}`);
+                  }
+                }}
+                className="bg-card border border-border rounded-lg p-4 md:p-6 hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary transition-colors cursor-pointer"
               >
                 <div className="flex flex-col sm:flex-row items-start gap-4 sm:justify-between">
                   <div className="flex-1 w-full">
@@ -280,66 +299,70 @@ const Dashboard = () => {
                       )}
                     </div>
                   </div>
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-primary/50 hover:bg-primary/10 w-full sm:w-auto"
-                      onClick={() => navigate(`/campaign/${campaign.id}`)}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="hover:bg-primary/10"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      onClick={(event) => event.stopPropagation()}
                     >
-                      Подробнее
-                    </Button>
-
-                    {/* Dropdown actions */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="hover:bg-primary/10"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={() => handleTogglePin(campaign)}
-                        >
-                          {campaign.pinned ? (
-                            <>
-                              <PinOff className="h-4 w-4 mr-2" />
-                              Открепить
-                            </>
-                          ) : (
-                            <>
-                              <Pin className="h-4 w-4 mr-2" />
-                              Закрепить
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleRenameClick(campaign)}
-                        >
-                          <Edit2 className="h-4 w-4 mr-2" />
-                          Переименовать
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleRegenerate(campaign)}
-                        >
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Перегенерировать
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteClick(campaign)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Удалить
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                      <DropdownMenuItem
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleTogglePin(campaign);
+                        }}
+                      >
+                        {campaign.pinned ? (
+                          <>
+                            <PinOff className="h-4 w-4 mr-2" />
+                            Открепить
+                          </>
+                        ) : (
+                          <>
+                            <Pin className="h-4 w-4 mr-2" />
+                            Закрепить
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRenameClick(campaign);
+                        }}
+                      >
+                        <Edit2 className="h-4 w-4 mr-2" />
+                        Переименовать
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleRegenerate(campaign);
+                        }}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Перегенерировать
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleDeleteClick(campaign);
+                        }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Удалить
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
             ))}
@@ -373,7 +396,11 @@ const Dashboard = () => {
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Отмена
             </Button>
-            <Button variant="destructive" onClick={handleDeleteConfirm}>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+            >
               Удалить
             </Button>
           </DialogFooter>

@@ -43,7 +43,7 @@ CREATE TABLE public.orchestrator_results (
   version integer NOT NULL DEFAULT 1,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   CONSTRAINT orchestrator_results_pkey PRIMARY KEY (id),
-  CONSTRAINT orchestrator_results_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id)
+  CONSTRAINT orchestrator_results_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE
 );
 CREATE TABLE public.profiles (
   id uuid NOT NULL,

@@ -114,6 +114,94 @@ def _safe_campaign_update(supabase: Client, campaign_id: str, payload: dict) -> 
 # ---------------------
 # API endpoint
 # ---------------------
+def _stringify_result(payload) -> str:
+    if payload is None:
+        return ""
+    if isinstance(payload, str):
+        return payload.strip()
+    try:
+        return json.dumps(payload, ensure_ascii=False, indent=2)
+    except (TypeError, ValueError):
+        return str(payload)
+
+
+def _extract_step_result(step_id: str, step_state: dict) -> Optional[str]:
+    if step_id == "manager_plan":
+        return step_state.get("plan")
+    if step_id == "manager_summary":
+        summary_text = step_state.get("summary") or ""
+        todo_items = step_state.get("todo") or []
+        todo_lines = []
+        for item in todo_items:
+            if not isinstance(item, dict):
+                continue
+            label = item.get("text") or ""
+            if not label:
+                continue
+            checkbox = "[x]" if item.get("done") else "[ ]"
+            todo_lines.append(f"{checkbox} {label}")
+        if todo_lines:
+            todo_section = "\n".join(todo_lines)
+            summary_text = (
+                f"{summary_text.strip()}\n\nTODO:\n{todo_section}".strip()
+                if summary_text
+                else f"TODO:\n{todo_section}"
+            )
+        return summary_text or None
+    agent_config = AGENT_REGISTRY.get(step_id)
+    if agent_config:
+        return step_state.get(agent_config.result_key)
+    return None
+
+
+def _store_result(
+    supabase: Optional[Client],
+    campaign_id: str,
+    *,
+    step_id: str,
+    payload,
+    status: str = "success",
+    agent_label: Optional[str] = None,
+) -> None:
+    if supabase is None:
+        return
+
+    serialized = _stringify_result(payload)
+    if not serialized:
+        return
+
+    try:
+        _execute_request(
+            supabase.table("orchestrator_results").insert(
+                {
+                    "campaign_id": campaign_id,
+                    "agent_name": agent_label or _humanize_step(step_id),
+                    "step": step_id,
+                    "status": status,
+                    "results": serialized,
+                }
+            )
+        )
+    except RuntimeError as exc:
+        print("⚠️ Failed to store orchestrator result:", exc)
+
+
+def _cleanup_results_for_version(
+    supabase: Optional[Client], campaign_id: str, version: Optional[int]
+) -> None:
+    if supabase is None or version is None:
+        return
+    try:
+        _execute_request(
+            supabase.table("orchestrator_results")
+            .delete()
+            .eq("campaign_id", campaign_id)
+            .eq("version", version)
+        )
+    except RuntimeError as exc:
+        print("⚠️ Failed to cleanup previous orchestrator results:", exc)
+
+
 @router.post("/run")
 async def run_orchestrator(
     background_tasks: BackgroundTasks,
@@ -168,8 +256,25 @@ def process_campaign(
     progress_log: list[str] = []
     supabase: Optional[Client] = None
 
+    campaign_metadata: dict[str, object] = {}
+    campaign_version: Optional[int] = None
+
     try:
         supabase = get_supabase_client()
+        try:
+            metadata_response = _execute_request(
+                supabase.table("campaigns")
+                .select("version, selected_agents, orchestrator_prompt, additional_notes")
+                .eq("id", campaign_id)
+                .limit(1)
+            )
+            if isinstance(metadata_response.data, list) and metadata_response.data:
+                campaign_metadata = metadata_response.data[0] or {}
+                version_value = campaign_metadata.get("version")
+                if isinstance(version_value, int):
+                    campaign_version = version_value
+        except RuntimeError as exc:
+            print("⚠️ Failed to load campaign metadata:", exc)
 
         # -------------------------------
         # 0. Подготовка шагов и прогресса
@@ -186,9 +291,30 @@ def process_campaign(
         else:
             selected_agents_list = []
 
+        if not selected_agents_list:
+            stored_agents = campaign_metadata.get("selected_agents")
+            if isinstance(stored_agents, list):
+                selected_agents_list = [
+                    agent_id for agent_id in stored_agents if isinstance(agent_id, str)
+                ]
+
         steps_sequence = ["manager_plan", *selected_agents_list, "manager_summary"]
         total_steps = max(len(steps_sequence), 1)
         progress_log.append(f"🚀 Оркестратор запущен. Всего шагов: {total_steps}.")
+
+        _cleanup_results_for_version(supabase, campaign_id, campaign_version)
+        _store_result(
+            supabase,
+            campaign_id,
+            step_id="campaign_settings",
+            payload={
+                "version": campaign_version or 1,
+                "orchestrator_prompt": orchestrator_prompt,
+                "additional_notes": additional_notes,
+                "selected_agents": selected_agents_list,
+            },
+            agent_label="Настройки версии",
+        )
 
         _safe_campaign_update(
             supabase,
@@ -284,6 +410,7 @@ def process_campaign(
                 for path in step_state.get("artifacts", [])
                 if isinstance(path, (str, os.PathLike))
             ]
+            step_result = _extract_step_result(step_id, step_state)
             _safe_campaign_update(
                 supabase,
                 campaign_id,
@@ -293,6 +420,13 @@ def process_campaign(
                     "artifacts_path": ", ".join(artifacts_list),
                 },
             )
+            if step_result:
+                _store_result(
+                    supabase,
+                    campaign_id,
+                    step_id=step_id,
+                    payload=step_result,
+                )
 
         result = run_campaign(state, on_step=handle_step)
 
@@ -325,6 +459,15 @@ def process_campaign(
 
     except Exception as e:
         print("❌ Ошибка при обработке кампании:", e)
+        if supabase is not None:
+            _store_result(
+                supabase,
+                campaign_id,
+                step_id="orchestrator_error",
+                payload=str(e),
+                status="failed",
+                agent_label="Оркестратор",
+            )
         try:
             if supabase is None:
                 supabase = get_supabase_client()
